@@ -13,6 +13,7 @@ class HttpClient(object):
         self.port = int(port)
         self.host = host
         self.conn = http.client.HTTPConnection(self.host+':'+str(self.port))
+        self._spanid_timestamp_sended = dict()
 
     def create_binary_annotation(self, service_name, ipv4, port, key, value):
         """
@@ -92,14 +93,17 @@ class HttpClient(object):
         """
         for event in events:
             #Extract event information
-            name = event.name
-            span_id = event["span_id"]
-            trace_id = event["trace_id"]
-            parent_span_id = event["parent_span_id"]
-            port = event["port_no"]
-            trace_name = event["trace_name"]
-            service_name = event["service_name"]
-            ip = event["ip"]
+            try:
+                name = event.name
+                span_id = event["span_id"]
+                trace_id = event["trace_id"]
+                parent_span_id = event["parent_span_id"]
+                port = event["port_no"]
+                trace_name = event["trace_name"]
+                service_name = event["service_name"]
+                ip = event["ip"]
+            except:
+                continue
             #Use CS as default value for Zipkin annotations
             value = "cs"
             if "core_annotation" in event:
@@ -121,6 +125,7 @@ class HttpClient(object):
                 json_span = self.create_span(span_id, parent_span_id,
                                              (trace_id), trace_name, [],
                                              [annotation])
+                print(json_span)
                 self.send_to_zipkin(json_span)
 
             elif (kind == "timestamp" or kind == "timestamp_core"):
@@ -128,10 +133,17 @@ class HttpClient(object):
                 span_id = int(span_id)
                 trace_id = int(trace_id)
                 parent_span_id =  int(parent_span_id)
-                json_span = self.create_span(span_id, parent_span_id,
-                                             (trace_id), trace_name,
-                                             [annotation], [],
-                                             timestamp=timestamp)
+                if span_id in self._spanid_timestamp_sended:
+                    json_span = self.create_span(span_id, parent_span_id,
+                                                 (trace_id), trace_name,
+                                                 [annotation], [])
+                else:
+                    json_span = self.create_span(span_id, parent_span_id,
+                                                 (trace_id), trace_name,
+                                                 [annotation], [],
+                                                 timestamp=timestamp)
+                    self._spanid_timestamp_sended[span_id] = True
+                print(json_span)
                 self.send_to_zipkin(json_span)
 
     def send_to_zipkin(self, span):
